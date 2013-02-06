@@ -11,7 +11,7 @@
  * an error. Reading and writing speed are shown during operation.
  *
  ******************************************************************************
- * Copyright (C) 2012 Timo Bingmann <tb@panthema.net>
+ * Copyright (C) 2012-2013 Timo Bingmann <tb@panthema.net>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
@@ -37,7 +37,7 @@
 #include <errno.h>
 #include <string.h>
 
-double timestamp()
+double timestamp(void)
 {
     struct timeval tv;
     gettimeofday(&tv, 0);
@@ -45,160 +45,217 @@ double timestamp()
     return ((double)(tv.tv_sec) + (double)(tv.tv_usec/1e6));
 }
 
-int main()
+/* random seed used */
+unsigned int g_seed;
+
+/* only perform read operation */
+int gopt_readonly = 0;
+
+/* print command line usage */
+void print_usage(char* argv[])
 {
-    time_t seed = time(NULL);
+    fprintf(stderr, "Usage: %s [-s random-seed] [-r]\n",
+            argv[0]);
+    exit(EXIT_FAILURE);       
+}
 
-    /* unlink old random files */
-    {
-        unsigned int filenum = 0;
+/* parse command line parameters */
+void parse_commandline(int argc, char* argv[])
+{
+    int opt;
 
-        while (filenum < UINT_MAX)
-        {
-            char filename[32];
-            snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
-
-            if (unlink(filename) != 0)
-                break;
-
-            printf("Removed old file %s\n", filename);
+    while ((opt = getopt(argc, argv, "s:r")) != -1) {
+        switch (opt) {
+        case 's':
+            g_seed = atoi(optarg);
+            break;
+        case 'r':
+            gopt_readonly = 1;
+            break;
+        default:
+            print_usage(argv);
         }
     }
 
-    sync();
+    if (optind < argc)
+        print_usage(argv);
+}
 
-    /* fill disk */
+/* unlink old random files */
+void unlink_randfiles(void)
+{
+    unsigned int filenum = 0;
+
+    while (filenum < UINT_MAX)
     {
-        unsigned int filenum = 0;
-        int done = 0;
+        char filename[32];
+        snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
 
-        while (!done && filenum < UINT_MAX)
-        {
-            char filename[32];
-            int fd, blocknum;
-            ssize_t wtotal, wb, wp;
-            unsigned int i;
-            double ts1, ts2;
+        if (unlink(filename) != 0)
+            break;
 
-            int block[1024*1024 / sizeof(int)];
-
-            snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
-
-            fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0600);
-            if (fd < 0) {
-                printf("Error opening next file %s: %s\n",
-                       filename, strerror(errno));
-                break;
-            }
-
-            /* reset random generator for each 1 GiB file */
-            srand(seed + filenum);
-
-            wtotal = 0;
-            ts1 = timestamp();
-
-            for (blocknum = 0; blocknum < 1024; ++blocknum)
-            {
-                for (i = 0; i < sizeof(block) / sizeof(int); ++i)
-                    block[i] = rand();
-
-                wp = 0;
-
-                while ( wp != sizeof(block) && !done )
-                {
-                    wb = write(fd, (char*)block + wp, sizeof(block) - wp);
-
-                    if (wb <= 0) {
-                        printf("Error writing next file %s: %s\n",
-                               filename, strerror(errno));
-                        done = 1;
-                        break;
-                    }
-                    else {
-                        wp += wb;
-                    }
-                }
-
-                wtotal += wp;
-            }
-
-            close(fd);
-
-            ts2 = timestamp();
-
-            printf("Wrote %.0f MiB random data to %s with %f MiB/s\n",
-                   (wtotal / 1024.0 / 1024.0),
-                   filename,
-                   (wtotal / 1024.0 / 1024.0 / (ts2-ts1)));
-        }
+        printf("Removed old file %s\n", filename);
     }
+}
 
-    sync();
+/* fill disk */
+void fill_randfiles(void)
+{
+    unsigned int filenum = 0;
+    int done = 0;
 
-    /* read files and check random sequence*/
+    printf("Writing files rand-#### with seed %u\n",
+           g_seed);
+
+    while (!done && filenum < UINT_MAX)
     {
-        unsigned int filenum = 0;
-        int done = 0;
+        char filename[32];
+        int fd, blocknum;
+        ssize_t wtotal, wb, wp;
+        unsigned int i;
+        double ts1, ts2;
 
-        srand(seed);
+        int block[1024*1024 / sizeof(int)];
 
-        while (!done)
+        snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
+
+        fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        if (fd < 0) {
+            printf("Error opening next file %s: %s\n",
+                   filename, strerror(errno));
+            break;
+        }
+
+        /* reset random generator for each 1 GiB file */
+        srand(g_seed + filenum);
+
+        wtotal = 0;
+        ts1 = timestamp();
+
+        for (blocknum = 0; blocknum < 1024; ++blocknum)
         {
-            char filename[32];
-            int fd, blocknum;
-            ssize_t rtotal, rb;
-            unsigned int i;
-            double ts1, ts2;
+            for (i = 0; i < sizeof(block) / sizeof(int); ++i)
+                block[i] = rand();
 
-            int block[1024*1024 / sizeof(int)];
+            wp = 0;
 
-            snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
-
-            fd = open(filename, O_RDONLY);
-            if (fd < 0) {
-                printf("Error opening next file %s: %s\n",
-                       filename, strerror(errno));
-                break;
-            }
-
-            srand(seed + filenum);
-
-            rtotal = 0;
-            ts1 = timestamp();
-
-            for (blocknum = 0; blocknum < 1024; ++blocknum)
+            while ( wp != sizeof(block) && !done )
             {
-                rb = read(fd, block, sizeof(block));
+                wb = write(fd, (char*)block + wp, sizeof(block) - wp);
 
-                if (rb <= 0) {
-                    printf("Error reading file %s: %s\n",
+                if (wb <= 0) {
+                    printf("Error writing next file %s: %s\n",
                            filename, strerror(errno));
                     done = 1;
                     break;
                 }
-
-                for (i = 0; i < rb  / sizeof(int); ++i)
-                {
-                    if (block[i] != rand())
-                    {
-                        printf("Mismatch to random sequence in file %s block %d at offset %lu\n",
-                               filename, blocknum, i * sizeof(int));
-                        break;
-                    }
+                else {
+                    wp += wb;
                 }
-
-                rtotal += rb;
             }
 
-            close(fd);
-
-            ts2 = timestamp();
-
-            printf("Read %.0f MiB random data from %s with %f MiB/s\n",
-                   (rtotal / 1024.0 / 1024.0),
-                   filename,
-                   (rtotal / 1024.0 / 1024.0 / (ts2-ts1)));
+            wtotal += wp;
         }
+
+        close(fd);
+
+        ts2 = timestamp();
+
+        printf("Wrote %.0f MiB random data to %s with %f MiB/s\n",
+               (wtotal / 1024.0 / 1024.0),
+               filename,
+               (wtotal / 1024.0 / 1024.0 / (ts2-ts1)));
+    }
+}
+
+/* read files and check random sequence*/
+void read_randfiles(void)
+{
+    unsigned int filenum = 0;
+    int done = 0;
+
+    printf("Verifying files rand-#### with seed %u\n",
+           g_seed);
+
+    srand(g_seed);
+
+    while (!done)
+    {
+        char filename[32];
+        int fd, blocknum;
+        ssize_t rtotal, rb;
+        unsigned int i;
+        double ts1, ts2;
+
+        int block[1024*1024 / sizeof(int)];
+
+        snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
+
+        fd = open(filename, O_RDONLY);
+        if (fd < 0) {
+            printf("Error opening next file %s: %s\n",
+                   filename, strerror(errno));
+            break;
+        }
+
+        srand(g_seed + filenum);
+
+        rtotal = 0;
+        ts1 = timestamp();
+
+        for (blocknum = 0; blocknum < 1024; ++blocknum)
+        {
+            rb = read(fd, block, sizeof(block));
+
+            if (rb <= 0) {
+                printf("Error reading file %s: %s\n",
+                       filename, strerror(errno));
+                done = 1;
+                break;
+            }
+
+            for (i = 0; i < rb  / sizeof(int); ++i)
+            {
+                if (block[i] != rand())
+                {
+                    printf("Mismatch to random sequence in file %s block %d at offset %lu\n",
+                           filename, blocknum, i * sizeof(int));
+                    break;
+                }
+            }
+
+            rtotal += rb;
+        }
+
+        close(fd);
+
+        ts2 = timestamp();
+
+        printf("Read %.0f MiB random data from %s with %f MiB/s\n",
+               (rtotal / 1024.0 / 1024.0),
+               filename,
+               (rtotal / 1024.0 / 1024.0 / (ts2-ts1)));
+    }
+}
+
+
+int main(int argc, char* argv[])
+{
+    g_seed = time(NULL);
+
+    parse_commandline(argc, argv);
+
+    if (gopt_readonly)
+    {
+        read_randfiles();
+    }
+    else
+    {
+        unlink_randfiles();
+        sync();
+        fill_randfiles();
+        sync();
+        read_randfiles();
     }
 
     return 0;

@@ -3,7 +3,7 @@
  *
  * Usage: ./disk-filltest
  *
- * The program will fill the current directory with files called rand-#####.
+ * The program will fill the current directory with files called random-#####.
  * Each file is up to 1 GiB in size and contains randomly generated integers.
  * When the disk is full, writing is finished and all files are read from disk.
  * During reading the file contents is checked against the pseudo-random
@@ -102,7 +102,7 @@ void unlink_randfiles(void)
     while (filenum < UINT_MAX)
     {
         char filename[32];
-        snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
+        snprintf(filename, sizeof(filename), "random-%010u", filenum++);
 
         if (unlink(filename) != 0)
             break;
@@ -119,7 +119,7 @@ void fill_randfiles(void)
 
     if (gopt_file_limit == 0) gopt_file_limit = UINT_MAX;
 
-    printf("Writing files rand-#### with seed %u\n",
+    printf("Writing files random-#### with seed %u\n",
            g_seed);
 
     while (!done && filenum < gopt_file_limit)
@@ -132,7 +132,7 @@ void fill_randfiles(void)
 
         int block[1024*1024 / sizeof(int)];
 
-        snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
+        snprintf(filename, sizeof(filename), "random-%010u", filenum++);
 
         fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0600);
         if (fd < 0) {
@@ -197,7 +197,7 @@ void read_randfiles(void)
     unsigned int filenum = 0;
     int done = 0;
 
-    printf("Verifying files rand-#### with seed %u\n",
+    printf("Verifying files random-#### with seed %u\n",
            g_seed);
 
     srand(g_seed);
@@ -212,7 +212,7 @@ void read_randfiles(void)
 
         int block[1024*1024 / sizeof(int)];
 
-        snprintf(filename, sizeof(filename), "rand-%010u", filenum++);
+        snprintf(filename, sizeof(filename), "random-%010u", filenum++);
 
         fd = open(filename, O_RDONLY);
         if (fd < 0) {

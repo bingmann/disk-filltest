@@ -252,9 +252,7 @@ int main(int argc, char* argv[])
     else
     {
         unlink_randfiles();
-        sync();
         fill_randfiles();
-        sync();
         read_randfiles();
     }
 

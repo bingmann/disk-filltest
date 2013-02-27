@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <getopt.h>
 
 double timestamp(void)
 {
@@ -51,10 +52,16 @@ unsigned int g_seed;
 /* only perform read operation */
 int gopt_readonly = 0;
 
+/* immediately unlink files after write */
+int gopt_unlink = 0;
+
+/* file number limit */
+unsigned int gopt_file_limit = 0;
+
 /* print command line usage */
 void print_usage(char* argv[])
 {
-    fprintf(stderr, "Usage: %s [-s random-seed] [-r]\n",
+    fprintf(stderr, "Usage: %s [-s random-seed] [-f file limit] [-r] [-u]\n",
             argv[0]);
     exit(EXIT_FAILURE);       
 }
@@ -64,13 +71,19 @@ void parse_commandline(int argc, char* argv[])
 {
     int opt;
 
-    while ((opt = getopt(argc, argv, "s:r")) != -1) {
+    while ((opt = getopt(argc, argv, "s:f:ru")) != -1) {
         switch (opt) {
         case 's':
             g_seed = atoi(optarg);
             break;
+        case 'f':
+            gopt_file_limit = atoi(optarg);
+            break;
         case 'r':
             gopt_readonly = 1;
+            break;
+        case 'u':
+            gopt_unlink = 1;
             break;
         default:
             print_usage(argv);
@@ -104,10 +117,12 @@ void fill_randfiles(void)
     unsigned int filenum = 0;
     int done = 0;
 
+    if (gopt_file_limit == 0) gopt_file_limit = UINT_MAX;
+
     printf("Writing files rand-#### with seed %u\n",
            g_seed);
 
-    while (!done && filenum < UINT_MAX)
+    while (!done && filenum < gopt_file_limit)
     {
         char filename[32];
         int fd, blocknum;
@@ -124,6 +139,13 @@ void fill_randfiles(void)
             printf("Error opening next file %s: %s\n",
                    filename, strerror(errno));
             break;
+        }
+
+        if (gopt_unlink) {
+            if (unlink(filename) != 0) {
+                printf("Error unlinkin opened file %s: %s\n",
+                       filename, strerror(errno));
+            }
         }
 
         /* reset random generator for each 1 GiB file */
@@ -165,6 +187,7 @@ void fill_randfiles(void)
                (wtotal / 1024.0 / 1024.0),
                filename,
                (wtotal / 1024.0 / 1024.0 / (ts2-ts1)));
+        fflush(stdout);
     }
 }
 
@@ -235,6 +258,7 @@ void read_randfiles(void)
                (rtotal / 1024.0 / 1024.0),
                filename,
                (rtotal / 1024.0 / 1024.0 / (ts2-ts1)));
+        fflush(stdout);
     }
 }
 

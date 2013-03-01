@@ -27,24 +27,16 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  *****************************************************************************/
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <time.h>
-#include <sys/time.h>
-#include <limits.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <errno.h>
-#include <string.h>
+#include <fcntl.h>
 #include <getopt.h>
-
-double timestamp(void)
-{
-    struct timeval tv;
-    gettimeofday(&tv, 0);
-
-    return ((double)(tv.tv_sec) + (double)(tv.tv_usec/1e6));
-}
+#include <limits.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/time.h>
+#include <time.h>
+#include <unistd.h>
 
 /* random seed used */
 unsigned int g_seed;
@@ -58,12 +50,48 @@ int gopt_unlink = 0;
 /* file number limit */
 unsigned int gopt_file_limit = 0;
 
+/* return the current timestamp */
+static inline double timestamp(void)
+{
+    struct timeval tv;
+    gettimeofday(&tv, 0);
+    return ((double)(tv.tv_sec) + (double)(tv.tv_usec/1e6));
+}
+
+/* a list of open file handles */
+int* g_filehandle = NULL;
+unsigned int g_filehandle_size = 0;
+unsigned int g_filehandle_limit = 0;
+
+/* append to the list of open file handles */
+static inline void filehandle_append(int fd)
+{
+    if (g_filehandle_size >= g_filehandle_limit)
+    {
+        g_filehandle_limit *= 2;
+        if (g_filehandle_limit < 128) g_filehandle_limit = 128;
+
+        g_filehandle = realloc(g_filehandle, sizeof(int) * g_filehandle_limit);
+    }
+
+    g_filehandle[ g_filehandle_size++ ] = fd;
+}
+
 /* print command line usage */
 void print_usage(char* argv[])
 {
-    fprintf(stderr, "Usage: %s [-s random-seed] [-f file limit] [-r] [-u]\n",
+    fprintf(stderr,
+            "Usage: %s [-s seed] [-f file limit] [-r] [-u] [-C dir]\n"
+            "\n"
+            "Options: \n"
+            "  -s <random seed>    Use random seed to write or verify data files.\n"
+            "  -f <file number>    Only write this number of 1 GiB sized files.\n"
+            "  -r                  Only verify existing data files with given random seed.\n"
+            "  -u                  Immediately remove files, but still write and verify them.\n"
+            "  -C <dir>            Change into given directory before starting work.\n"
+            "\n",
             argv[0]);
-    exit(EXIT_FAILURE);       
+    exit(EXIT_FAILURE);
 }
 
 /* parse command line parameters */
@@ -71,7 +99,7 @@ void parse_commandline(int argc, char* argv[])
 {
     int opt;
 
-    while ((opt = getopt(argc, argv, "s:f:ru")) != -1) {
+    while ((opt = getopt(argc, argv, "hs:f:ruC:")) != -1) {
         switch (opt) {
         case 's':
             g_seed = atoi(optarg);
@@ -85,6 +113,12 @@ void parse_commandline(int argc, char* argv[])
         case 'u':
             gopt_unlink = 1;
             break;
+        case 'C':
+            if (chdir(optarg) != 0) {
+                printf("Error chdir to %s: %s\n", optarg, strerror(errno));
+            }
+            break;
+        case 'h':
         default:
             print_usage(argv);
         }
@@ -119,8 +153,7 @@ void fill_randfiles(void)
 
     if (gopt_file_limit == 0) gopt_file_limit = UINT_MAX;
 
-    printf("Writing files random-#### with seed %u\n",
-           g_seed);
+    printf("Writing files random-#### with seed %u\n", g_seed);
 
     while (!done && filenum < gopt_file_limit)
     {
@@ -132,9 +165,9 @@ void fill_randfiles(void)
 
         int block[1024*1024 / sizeof(int)];
 
-        snprintf(filename, sizeof(filename), "random-%010u", filenum++);
+        snprintf(filename, sizeof(filename), "random-%010u", filenum);
 
-        fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+        fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0600);
         if (fd < 0) {
             printf("Error opening next file %s: %s\n",
                    filename, strerror(errno));
@@ -149,7 +182,7 @@ void fill_randfiles(void)
         }
 
         /* reset random generator for each 1 GiB file */
-        srand(g_seed + filenum);
+        srand(g_seed + (++filenum));
 
         wtotal = 0;
         ts1 = timestamp();
@@ -179,7 +212,12 @@ void fill_randfiles(void)
             wtotal += wp;
         }
 
-        close(fd);
+        if (gopt_unlink) { /* do not close file handle! */
+            filehandle_append(fd);
+        }
+        else {
+            close(fd);
+        }
 
         ts2 = timestamp();
 
@@ -197,8 +235,7 @@ void read_randfiles(void)
     unsigned int filenum = 0;
     int done = 0;
 
-    printf("Verifying files random-#### with seed %u\n",
-           g_seed);
+    printf("Verifying files random-#### with seed %u\n", g_seed);
 
     srand(g_seed);
 
@@ -212,16 +249,35 @@ void read_randfiles(void)
 
         int block[1024*1024 / sizeof(int)];
 
-        snprintf(filename, sizeof(filename), "random-%010u", filenum++);
+        snprintf(filename, sizeof(filename), "random-%010u", filenum);
 
-        fd = open(filename, O_RDONLY);
-        if (fd < 0) {
-            printf("Error opening next file %s: %s\n",
-                   filename, strerror(errno));
-            break;
+        if (gopt_unlink)
+        {
+            if (filenum >= g_filehandle_size) {
+                printf("Finished all opened file handles.\n");
+                break;
+            }
+
+            fd = g_filehandle[filenum];
+
+            if (lseek(fd, 0, SEEK_SET) != 0) {
+                printf("Error seeking in next file %s: %s\n",
+                       filename, strerror(errno));
+                break;
+            }
+        }
+        else
+        {
+            fd = open(filename, O_RDONLY);
+            if (fd < 0) {
+                printf("Error opening next file %s: %s\n",
+                       filename, strerror(errno));
+                break;
+            }
         }
 
-        srand(g_seed + filenum);
+        /* reset random generator for each 1 GiB file */
+        srand(g_seed + (++filenum));
 
         rtotal = 0;
         ts1 = timestamp();

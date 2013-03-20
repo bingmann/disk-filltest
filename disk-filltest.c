@@ -1,5 +1,5 @@
 /******************************************************************************
- * disk-filltest.cc - Program to fill a hard disk with random data
+ * disk-filltest.c - Program to fill a hard disk with random data
  *
  * Usage: ./disk-filltest
  *
@@ -47,6 +47,9 @@ int gopt_readonly = 0;
 /* immediately unlink files after write */
 int gopt_unlink = 0;
 
+/* individual file size in MiB */
+unsigned int gopt_file_size = 0;
+
 /* file number limit */
 unsigned int gopt_file_limit = 0;
 
@@ -81,14 +84,15 @@ static inline void filehandle_append(int fd)
 void print_usage(char* argv[])
 {
     fprintf(stderr,
-            "Usage: %s [-s seed] [-f file limit] [-r] [-u] [-C dir]\n"
+            "Usage: %s [-s seed] [-f file limit] [-S size] [-r] [-u] [-C dir]\n"
             "\n"
             "Options: \n"
-            "  -s <random seed>    Use random seed to write or verify data files.\n"
+            "  -C <dir>            Change into given directory before starting work.\n"
             "  -f <file number>    Only write this number of 1 GiB sized files.\n"
             "  -r                  Only verify existing data files with given random seed.\n"
+            "  -s <random seed>    Use random seed to write or verify data files.\n"
+            "  -S <size>           Size of each random file in MiB (default: 1024).\n"
             "  -u                  Immediately remove files, but still write and verify them.\n"
-            "  -C <dir>            Change into given directory before starting work.\n"
             "\n",
             argv[0]);
     exit(EXIT_FAILURE);
@@ -99,10 +103,13 @@ void parse_commandline(int argc, char* argv[])
 {
     int opt;
 
-    while ((opt = getopt(argc, argv, "hs:f:ruC:")) != -1) {
+    while ((opt = getopt(argc, argv, "hs:S:f:ruC:")) != -1) {
         switch (opt) {
         case 's':
             g_seed = atoi(optarg);
+            break;
+        case 'S':
+            gopt_file_size = atoi(optarg);
             break;
         case 'f':
             gopt_file_limit = atoi(optarg);
@@ -126,6 +133,9 @@ void parse_commandline(int argc, char* argv[])
 
     if (optind < argc)
         print_usage(argv);
+
+    if (gopt_file_size == 0)
+        gopt_file_size = 1024;
 }
 
 /* unlink old random files */
@@ -158,9 +168,9 @@ void fill_randfiles(void)
     while (!done && filenum < gopt_file_limit)
     {
         char filename[32];
-        int fd, blocknum;
+        int fd;
         ssize_t wtotal, wb, wp;
-        unsigned int i;
+        unsigned int i, blocknum;
         double ts1, ts2;
 
         int block[1024*1024 / sizeof(int)];
@@ -187,14 +197,14 @@ void fill_randfiles(void)
         wtotal = 0;
         ts1 = timestamp();
 
-        for (blocknum = 0; blocknum < 1024; ++blocknum)
+        for (blocknum = 0; blocknum < gopt_file_size; ++blocknum)
         {
             for (i = 0; i < sizeof(block) / sizeof(int); ++i)
                 block[i] = rand();
 
             wp = 0;
 
-            while ( wp != sizeof(block) && !done )
+            while ( wp != (ssize_t)sizeof(block) && !done )
             {
                 wb = write(fd, (char*)block + wp, sizeof(block) - wp);
 
@@ -242,9 +252,9 @@ void read_randfiles(void)
     while (!done)
     {
         char filename[32];
-        int fd, blocknum;
+        int fd;
         ssize_t rtotal, rb;
-        unsigned int i;
+        unsigned int i, blocknum;
         double ts1, ts2;
 
         int block[1024*1024 / sizeof(int)];
@@ -282,7 +292,7 @@ void read_randfiles(void)
         rtotal = 0;
         ts1 = timestamp();
 
-        for (blocknum = 0; blocknum < 1024; ++blocknum)
+        for (blocknum = 0; blocknum < gopt_file_size; ++blocknum)
         {
             rb = read(fd, block, sizeof(block));
 
@@ -298,7 +308,7 @@ void read_randfiles(void)
                 if (block[i] != rand())
                 {
                     printf("Mismatch to random sequence in file %s block %d at offset %lu\n",
-                           filename, blocknum, i * sizeof(int));
+                           filename, blocknum, (long unsigned)(i * sizeof(int)));
                     break;
                 }
             }

@@ -44,8 +44,11 @@ unsigned int g_seed;
 /* only perform read operation */
 int gopt_readonly = 0;
 
-/* immediately unlink files after write */
-int gopt_unlink = 0;
+/* immediately unlink files after open */
+int gopt_unlink_immediate = 0;
+
+/* unlink files after complete run */
+int gopt_unlink_after = 0;
 
 /* individual file size in MiB */
 unsigned int gopt_file_size = 0;
@@ -84,7 +87,7 @@ static inline void filehandle_append(int fd)
 void print_usage(char* argv[])
 {
     fprintf(stderr,
-            "Usage: %s [-s seed] [-f file limit] [-S size] [-r] [-u] [-C dir]\n"
+            "Usage: %s [-s seed] [-f file limit] [-S size] [-r] [-u] [-U] [-C dir]\n"
             "\n"
             "Options: \n"
             "  -C <dir>            Change into given directory before starting work.\n"
@@ -92,7 +95,8 @@ void print_usage(char* argv[])
             "  -r                  Only verify existing data files with given random seed.\n"
             "  -s <random seed>    Use random seed to write or verify data files.\n"
             "  -S <size>           Size of each random file in MiB (default: 1024).\n"
-            "  -u                  Immediately remove files, but still write and verify them.\n"
+            "  -u                  Remove files after successful test.\n"
+            "  -U                  Immediately remove files, but still write and verify via file handles.\n"
             "\n",
             argv[0]);
     exit(EXIT_FAILURE);
@@ -103,7 +107,7 @@ void parse_commandline(int argc, char* argv[])
 {
     int opt;
 
-    while ((opt = getopt(argc, argv, "hs:S:f:ruC:")) != -1) {
+    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:")) != -1) {
         switch (opt) {
         case 's':
             g_seed = atoi(optarg);
@@ -118,7 +122,10 @@ void parse_commandline(int argc, char* argv[])
             gopt_readonly = 1;
             break;
         case 'u':
-            gopt_unlink = 1;
+            gopt_unlink_after = 1;
+            break;
+        case 'U':
+            gopt_unlink_immediate = 1;
             break;
         case 'C':
             if (chdir(optarg) != 0) {
@@ -146,13 +153,22 @@ void unlink_randfiles(void)
     while (filenum < UINT_MAX)
     {
         char filename[32];
-        snprintf(filename, sizeof(filename), "random-%010u", filenum++);
+        snprintf(filename, sizeof(filename), "random-%08u", filenum);
 
         if (unlink(filename) != 0)
             break;
 
-        printf("Removed old file %s\n", filename);
+        if (filenum == 0)
+            printf("Removing old files .");
+        else
+            printf(".");
+        fflush(stdout);
+
+        ++filenum;
     }
+
+    if (filenum > 0)
+        printf(" total: %u.\n", filenum);
 }
 
 /* fill disk */
@@ -163,7 +179,7 @@ void fill_randfiles(void)
 
     if (gopt_file_limit == 0) gopt_file_limit = UINT_MAX;
 
-    printf("Writing files random-#### with seed %u\n", g_seed);
+    printf("Writing files random-######## with seed %u\n", g_seed);
 
     while (!done && filenum < gopt_file_limit)
     {
@@ -175,7 +191,7 @@ void fill_randfiles(void)
 
         int block[1024*1024 / sizeof(int)];
 
-        snprintf(filename, sizeof(filename), "random-%010u", filenum);
+        snprintf(filename, sizeof(filename), "random-%08u", filenum);
 
         fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0600);
         if (fd < 0) {
@@ -184,7 +200,7 @@ void fill_randfiles(void)
             break;
         }
 
-        if (gopt_unlink) {
+        if (gopt_unlink_immediate) {
             if (unlink(filename) != 0) {
                 printf("Error unlinkin opened file %s: %s\n",
                        filename, strerror(errno));
@@ -222,7 +238,7 @@ void fill_randfiles(void)
             wtotal += wp;
         }
 
-        if (gopt_unlink) { /* do not close file handle! */
+        if (gopt_unlink_immediate) { /* do not close file handle! */
             filehandle_append(fd);
         }
         else {
@@ -245,7 +261,7 @@ void read_randfiles(void)
     unsigned int filenum = 0;
     int done = 0;
 
-    printf("Verifying files random-#### with seed %u\n", g_seed);
+    printf("Verifying files random-######## with seed %u\n", g_seed);
 
     srand(g_seed);
 
@@ -259,9 +275,9 @@ void read_randfiles(void)
 
         int block[1024*1024 / sizeof(int)];
 
-        snprintf(filename, sizeof(filename), "random-%010u", filenum);
+        snprintf(filename, sizeof(filename), "random-%08u", filenum);
 
-        if (gopt_unlink)
+        if (gopt_unlink_immediate)
         {
             if (filenum >= g_filehandle_size) {
                 printf("Finished all opened file handles.\n");
@@ -309,6 +325,7 @@ void read_randfiles(void)
                 {
                     printf("Mismatch to random sequence in file %s block %d at offset %lu\n",
                            filename, blocknum, (long unsigned)(i * sizeof(int)));
+                    gopt_unlink_after = 0;
                     break;
                 }
             }
@@ -344,6 +361,8 @@ int main(int argc, char* argv[])
         unlink_randfiles();
         fill_randfiles();
         read_randfiles();
+        if (gopt_unlink_after)
+            unlink_randfiles();
     }
 
     return 0;

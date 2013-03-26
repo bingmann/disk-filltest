@@ -30,6 +30,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -64,6 +65,17 @@ static inline double timestamp(void)
     return ((double)(tv.tv_sec) + (double)(tv.tv_usec/1e6));
 }
 
+/* simple linear congruential random generator, faster than rand() and totally
+ * sufficient for this cause. */
+static inline uint64_t lcg_random(uint64_t *xn)
+{
+    *xn = 0x27BB2EE687B0B0FDLLU * *xn + 0xB504F32DLU;
+    return *xn;
+}
+
+/* item type used in blocks written to disk */
+typedef uint64_t item_type;
+
 /* a list of open file handles */
 int* g_filehandle = NULL;
 unsigned int g_filehandle_size = 0;
@@ -87,16 +99,16 @@ static inline void filehandle_append(int fd)
 void print_usage(char* argv[])
 {
     fprintf(stderr,
-            "Usage: %s [-s seed] [-f file limit] [-S size] [-r] [-u] [-U] [-C dir]\n"
+            "Usage: %s [-s seed] [-f files] [-S size] [-r] [-u] [-U] [-C dir]\n"
             "\n"
             "Options: \n"
-            "  -C <dir>            Change into given directory before starting work.\n"
-            "  -f <file number>    Only write this number of 1 GiB sized files.\n"
-            "  -r                  Only verify existing data files with given random seed.\n"
-            "  -s <random seed>    Use random seed to write or verify data files.\n"
-            "  -S <size>           Size of each random file in MiB (default: 1024).\n"
-            "  -u                  Remove files after successful test.\n"
-            "  -U                  Immediately remove files, but still write and verify via file handles.\n"
+            "  -C <dir>          Change into given directory before starting work.\n"
+            "  -f <file number>  Only write this number of 1 GiB sized files.\n"
+            "  -r                Only verify existing data files with given random seed.\n"
+            "  -s <random seed>  Use random seed to write or verify data files.\n"
+            "  -S <size>         Size of each random file in MiB (default: 1024).\n"
+            "  -u                Remove files after successful test.\n"
+            "  -U                Immediately remove files, write and verify via file handles.\n"
             "\n",
             argv[0]);
     exit(EXIT_FAILURE);
@@ -188,8 +200,9 @@ void fill_randfiles(void)
         ssize_t wtotal, wb, wp;
         unsigned int i, blocknum;
         double ts1, ts2;
+        uint64_t rnd;
 
-        int block[1024*1024 / sizeof(int)];
+        item_type block[1024*1024 / sizeof(item_type)];
 
         snprintf(filename, sizeof(filename), "random-%08u", filenum);
 
@@ -208,15 +221,15 @@ void fill_randfiles(void)
         }
 
         /* reset random generator for each 1 GiB file */
-        srand(g_seed + (++filenum));
+        rnd = g_seed + (++filenum);
 
         wtotal = 0;
         ts1 = timestamp();
 
         for (blocknum = 0; blocknum < gopt_file_size; ++blocknum)
         {
-            for (i = 0; i < sizeof(block) / sizeof(int); ++i)
-                block[i] = rand();
+            for (i = 0; i < sizeof(block) / sizeof(item_type); ++i)
+                block[i] = lcg_random(&rnd);
 
             wp = 0;
 
@@ -253,6 +266,8 @@ void fill_randfiles(void)
                (wtotal / 1024.0 / 1024.0 / (ts2-ts1)));
         fflush(stdout);
     }
+
+    errno = 0;
 }
 
 /* read files and check random sequence*/
@@ -263,8 +278,6 @@ void read_randfiles(void)
 
     printf("Verifying files random-######## with seed %u\n", g_seed);
 
-    srand(g_seed);
-
     while (!done)
     {
         char filename[32];
@@ -272,8 +285,9 @@ void read_randfiles(void)
         ssize_t rtotal, rb;
         unsigned int i, blocknum;
         double ts1, ts2;
+        uint64_t rnd;
 
-        int block[1024*1024 / sizeof(int)];
+        item_type block[1024*1024 / sizeof(item_type)];
 
         snprintf(filename, sizeof(filename), "random-%08u", filenum);
 
@@ -303,7 +317,7 @@ void read_randfiles(void)
         }
 
         /* reset random generator for each 1 GiB file */
-        srand(g_seed + (++filenum));
+        rnd = g_seed + (++filenum);
 
         rtotal = 0;
         ts1 = timestamp();
@@ -319,9 +333,9 @@ void read_randfiles(void)
                 break;
             }
 
-            for (i = 0; i < rb  / sizeof(int); ++i)
+            for (i = 0; i < rb  / sizeof(item_type); ++i)
             {
-                if (block[i] != rand())
+                if (block[i] != lcg_random(&rnd))
                 {
                     printf("Mismatch to random sequence in file %s block %d at offset %lu\n",
                            filename, blocknum, (long unsigned)(i * sizeof(int)));
@@ -344,7 +358,6 @@ void read_randfiles(void)
         fflush(stdout);
     }
 }
-
 
 int main(int argc, char* argv[])
 {

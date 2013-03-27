@@ -1,0 +1,34 @@
+# disk-filltest - Simple Tool to Detect Bad Disks by Filling with Random Data #
+
+The number of hard disk produced in the last five years is huge. Of course,
+this is the same number of hard disks that will most probably fail in the next
+five years, possibly with catastrophic consequences for the particular user or
+business.
+
+The simple tool disk-filltest can help, together with S.M.A.R.T. monitoring, to
+check disks periodically and thus be forewarned about coming failures. The
+function of disk-filltest is simple:
+
+* Write files random-######## to the current directory until the disk is full.
+
+* Read the files again and verify the pseudo-random sequence written.
+
+* Any write or read error will be reported, either by the operating system or
+  by checking the pseudo-random sequence.
+
+* Optionally, delete the random files after a successful run.
+
+The method is simple and effective, however, it of course does not verify other
+files on the disk. That is a different task, which can be solved efficiently
+using digup (a Digest Updating Tool) (http://panthema.net/2009/digup/).
+
+Another useful side-function of disk-filltest is to measure read/write speed
+while filling the disk. Slow speeds may also indicate a future failure, or just
+bad disk controlling.
+
+The program runs on Linux, Windows and probably any other POSIX-compatible
+system. The whole source code is one .c-file.
+
+See http://panthema.net/2013/disk-filltest/ for more information.
+
+Written 2013-03-27 by Timo Bingmann <tb@panthema.net>

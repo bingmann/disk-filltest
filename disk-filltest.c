@@ -95,6 +95,11 @@ static inline void filehandle_append(int fd)
     g_filehandle[ g_filehandle_size++ ] = fd;
 }
 
+/* for compatiblity with windows, use O_BINARY if available */
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
+
 /* print command line usage */
 void print_usage(char* argv[])
 {
@@ -206,7 +211,7 @@ void fill_randfiles(void)
 
         snprintf(filename, sizeof(filename), "random-%08u", filenum);
 
-        fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, 0600);
+        fd = open(filename, O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0600);
         if (fd < 0) {
             printf("Error opening next file %s: %s\n",
                    filename, strerror(errno));
@@ -308,7 +313,7 @@ void read_randfiles(void)
         }
         else
         {
-            fd = open(filename, O_RDONLY);
+            fd = open(filename, O_RDONLY | O_BINARY);
             if (fd < 0) {
                 printf("Error opening next file %s: %s\n",
                        filename, strerror(errno));

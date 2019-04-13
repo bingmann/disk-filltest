@@ -147,7 +147,7 @@ void parse_commandline(int argc, char* argv[])
         case 'C':
             if (chdir(optarg) != 0) {
                 printf("Error chdir to %s: %s\n", optarg, strerror(errno));
-                exit 0;
+                exit(EXIT_FAILURE);
             }
             break;
         case 'h':

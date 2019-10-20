@@ -1,0 +1,67 @@
+.TH disk-filltest 1
+.SH NAME
+disk-filltest \- Simple Tool to Detect Bad Disks by Filling with Random Data
+.SH SYNOPSIS
+.B disk-filltest
+[\fB\-s\fR \fIseed\fR]
+[\fB\-f\fR \fIfiles\fR]
+[\fB\-S\fR \fIsize\fR]
+[\fB\-r\fR]
+[\fB\-u\fR]
+[\fB\-U\fR]
+[\fB\-C\fR \fIdir\fR]
+.SH DESCRIPTION
+.B disk-filltest
+The number of hard disk produced in the last five years is huge. Of course,
+this is the same number of hard disks that will most probably fail in the next
+five years, possibly with catastrophic consequences for the particular user or
+business.
+.PP
+The simple tool disk-filltest can help, together with S.M.A.R.T. monitoring, to
+check disks periodically and thus be forewarned about coming failures. The
+function of disk-filltest is simple:
+.IP \(bu 3
+Write files \fBrandom-########\fR to the current directory until the disk is full.
+.IP \(bu 3
+Read the files again and verify the pseudo-random sequence written.
+.IP \(bu 3
+Any write or read error will be reported, either by the operating system or by
+checking the pseudo-random sequence.
+.IP \(bu 3
+Optionally, delete the random files after a successful run.
+.PP
+The method is simple and effective, however, it of course does not verify other
+files on the disk. That is a different task, which can be solved efficiently,
+for example, using digup (a Digest Updating Tool) (https://panthema.net/2009/digup/).
+.PP
+Another useful side-function of disk-filltest is to measure read/write speed
+while filling the disk. Slow speeds may also indicate a future failure, or just
+bad disk controlling.
+.PP
+See https://panthema.net/2013/disk-filltest/ for more information.
+.SH OPTIONS
+.TP
+\fB\-C\fR \fIdir\fR
+Change into given directory before starting work.
+.TP
+\fB\-f\fR \fIfiles\fR
+Only write this number of 1 GiB sized files.
+.TP
+\fB\-r\fR
+Only verify existing data files with given random seed.
+.TP
+\fB\-s\fR \fIseed\fR
+Use random seed to write or verify data files.
+.TP
+\fB\-S\fR \fIsize\fR
+Size of each random file in MiB (default: 1024).
+.TP
+\fB\-u\fR
+Remove files after successful test.
+.TP
+\fB\-U\fR
+Immediately remove files, write and verify via file handles.
+.SH AUTHORS
+Written by Timo Bingmann
+.SH "SEE ALSO"
+dd(1), digup(1)

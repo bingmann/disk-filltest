@@ -115,7 +115,7 @@ void print_usage(char* argv[])
             "Options: \n"
             "  -C <dir>          Change into given directory before starting work.\n"
             "  -f <file number>  Only write this number of 1 GiB sized files.\n"
-            "  -n                Skip verification, e.g. for just wiping a disk.\n"
+            "  -N                Skip verification, e.g. for just wiping a disk.\n"
             "  -r                Only verify existing data files with given random seed.\n"
             "  -s <random seed>  Use random seed to write or verify data files.\n"
             "  -S <size>         Size of each random file in MiB (default: 1024).\n"
@@ -131,7 +131,7 @@ void parse_commandline(int argc, char* argv[])
 {
     int opt;
 
-    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:nR:")) != -1) {
+    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:NR:")) != -1) {
         switch (opt) {
         case 's':
             g_seed = atoi(optarg);
@@ -157,7 +157,7 @@ void parse_commandline(int argc, char* argv[])
                 exit(EXIT_FAILURE);
             }
             break;
-        case 'n':
+        case 'N':
             gopt_skip_verify = 1;
             break;
         case 'R':

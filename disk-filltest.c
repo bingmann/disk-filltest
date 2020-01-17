@@ -148,6 +148,7 @@ void print_usage(char* argv[])
             "  -f <file number>  Only write this number of 1 GiB sized files.\n"
             "  -N                Skip verification, e.g. for just wiping a disk.\n"
             "  -r                Only verify existing data files with given random seed.\n"
+            "  -R <times>        Repeat fill/test/wipe steps given number of times.\n"
             "  -s <random seed>  Use random seed to write or verify data files.\n"
             "  -S <size>         Size of each random file in MiB (default: 1024).\n"
             "  -u                Remove files after successful test.\n"

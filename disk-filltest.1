@@ -7,6 +7,7 @@ disk-filltest \- Simple Tool to Detect Bad Disks by Filling with Random Data
 [\fB\-f\fR \fIfiles\fR]
 [\fB\-n\fR]
 [\fB\-r\fR]
+[\fB\-R\fR \fIrepeats\fR]
 [\fB\-s\fR \fIseed\fR]
 [\fB\-S\fR \fIsize\fR]
 [\fB\-u\fR]
@@ -53,6 +54,9 @@ Skip verification of files, e.g. for wiping a disk.
 .TP
 \fB\-r\fR
 Only verify existing data files with given random seed.
+.TP
+\fB\-R\fR \fIrepeat\fR
+Repeat fill/test/wipe steps given number of times.
 .TP
 \fB\-s\fR \fIseed\fR
 Use random seed to write or verify data files.

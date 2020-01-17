@@ -11,7 +11,7 @@
  * an error. Reading and writing speed are shown during operation.
  *
  ******************************************************************************
- * Copyright (C) 2012-2013 Timo Bingmann <tb@panthema.net>
+ * Copyright (C) 2012-2020 Timo Bingmann <tb@panthema.net>
  *
  * This program is free software: you can redistribute it and/or modify it
  * under the terms of the GNU General Public License as published by the Free
@@ -59,6 +59,9 @@ unsigned int gopt_file_size = 0;
 
 /* file number limit */
 unsigned int gopt_file_limit = 0;
+
+/* number of repetitions */
+int gopt_repeat = 1;
 
 /* return the current timestamp */
 double timestamp(void)
@@ -128,7 +131,7 @@ void parse_commandline(int argc, char* argv[])
 {
     int opt;
 
-    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:n")) != -1) {
+    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:nR:")) != -1) {
         switch (opt) {
         case 's':
             g_seed = atoi(optarg);
@@ -156,6 +159,9 @@ void parse_commandline(int argc, char* argv[])
             break;
         case 'n':
             gopt_skip_verify = 1;
+            break;
+        case 'R':
+            gopt_repeat = atoi(optarg);
             break;
         case 'h':
         default:
@@ -215,7 +221,7 @@ void fill_randfiles(void)
         double ts1, ts2;
         uint64_t rnd;
 
-        item_type block[1024*1024 / sizeof(item_type)];
+        item_type block[(1024 * 1024) / sizeof(item_type)];
 
         sprintf(filename, "random-%08u", filenum);
 
@@ -228,7 +234,7 @@ void fill_randfiles(void)
 
         if (gopt_unlink_immediate) {
             if (unlink(filename) != 0) {
-                printf("Error unlinkin opened file %s: %s\n",
+                printf("Error unlinking opened file %s: %s\n",
                        filename, strerror(errno));
             }
         }
@@ -300,7 +306,7 @@ void read_randfiles(void)
         double ts1, ts2;
         uint64_t rnd;
 
-        item_type block[1024*1024 / sizeof(item_type)];
+        item_type block[(1024 * 1024) / sizeof(item_type)];
 
         sprintf(filename, "random-%08u", filenum);
 
@@ -316,7 +322,7 @@ void read_randfiles(void)
             if (lseek(fd, 0, SEEK_SET) != 0) {
                 printf("Error seeking in next file %s: %s\n",
                        filename, strerror(errno));
-                break;
+                exit(EXIT_FAILURE);
             }
         }
         else
@@ -343,17 +349,19 @@ void read_randfiles(void)
                 printf("Error reading file %s: %s\n",
                        filename, strerror(errno));
                 done = 1;
-                break;
+                exit(EXIT_FAILURE);
             }
 
             for (i = 0; i < rb  / sizeof(item_type); ++i)
             {
                 if (block[i] != lcg_random(&rnd))
                 {
-                    printf("Mismatch to random sequence in file %s block %d at offset %lu\n",
-                           filename, blocknum, (long unsigned)(i * sizeof(int)));
+                    printf("Mismatch to random sequence "
+                           "in file %s block %d at offset %lu\n",
+                           filename, blocknum,
+                           (long unsigned)(i * sizeof(int)));
                     gopt_unlink_after = 0;
-                    break;
+                    exit(EXIT_FAILURE);
                 }
             }
 
@@ -374,24 +382,29 @@ void read_randfiles(void)
 
 int main(int argc, char* argv[])
 {
+    int r;
+
     g_seed = time(NULL);
 
     parse_commandline(argc, argv);
 
-    if (gopt_readonly)
+    for (r = 0; r < gopt_repeat; ++r)
     {
-        read_randfiles();
-        if (gopt_unlink_after)
-            unlink_randfiles();
-    }
-    else
-    {
-        unlink_randfiles();
-        fill_randfiles();
-        if (!gopt_skip_verify)
+        if (gopt_readonly)
+        {
             read_randfiles();
-        if (gopt_unlink_after)
+            if (gopt_unlink_after)
+                unlink_randfiles();
+        }
+        else
+        {
             unlink_randfiles();
+            fill_randfiles();
+            if (!gopt_skip_verify)
+                read_randfiles();
+            if (gopt_unlink_after)
+                unlink_randfiles();
+        }
     }
 
     return 0;

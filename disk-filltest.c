@@ -51,6 +51,9 @@ int gopt_unlink_immediate = 0;
 /* unlink files after complete run */
 int gopt_unlink_after = 0;
 
+/* skip file verification (e.g. for wiping a disk) */
+int gopt_skip_verify = 0;
+
 /* individual file size in MiB */
 unsigned int gopt_file_size = 0;
 
@@ -109,6 +112,7 @@ void print_usage(char* argv[])
             "Options: \n"
             "  -C <dir>          Change into given directory before starting work.\n"
             "  -f <file number>  Only write this number of 1 GiB sized files.\n"
+            "  -n                Skip verification, e.g. for just wiping a disk.\n"
             "  -r                Only verify existing data files with given random seed.\n"
             "  -s <random seed>  Use random seed to write or verify data files.\n"
             "  -S <size>         Size of each random file in MiB (default: 1024).\n"
@@ -124,7 +128,7 @@ void parse_commandline(int argc, char* argv[])
 {
     int opt;
 
-    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:")) != -1) {
+    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:n")) != -1) {
         switch (opt) {
         case 's':
             g_seed = atoi(optarg);
@@ -149,6 +153,9 @@ void parse_commandline(int argc, char* argv[])
                 printf("Error chdir to %s: %s\n", optarg, strerror(errno));
                 exit(EXIT_FAILURE);
             }
+            break;
+        case 'n':
+            gopt_skip_verify = 1;
             break;
         case 'h':
         default:
@@ -374,12 +381,15 @@ int main(int argc, char* argv[])
     if (gopt_readonly)
     {
         read_randfiles();
+        if (gopt_unlink_after)
+            unlink_randfiles();
     }
     else
     {
         unlink_randfiles();
         fill_randfiles();
-        read_randfiles();
+        if (!gopt_skip_verify)
+            read_randfiles();
         if (gopt_unlink_after)
             unlink_randfiles();
     }

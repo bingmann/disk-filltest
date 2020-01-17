@@ -3,13 +3,14 @@
 disk-filltest \- Simple Tool to Detect Bad Disks by Filling with Random Data
 .SH SYNOPSIS
 .B disk-filltest
-[\fB\-s\fR \fIseed\fR]
+[\fB\-C\fR \fIdir\fR]
 [\fB\-f\fR \fIfiles\fR]
-[\fB\-S\fR \fIsize\fR]
+[\fB\-n\fR]
 [\fB\-r\fR]
+[\fB\-s\fR \fIseed\fR]
+[\fB\-S\fR \fIsize\fR]
 [\fB\-u\fR]
 [\fB\-U\fR]
-[\fB\-C\fR \fIdir\fR]
 .SH DESCRIPTION
 .B disk-filltest
 The number of hard disk produced in the last five years is huge. Of course,
@@ -46,6 +47,9 @@ Change into given directory before starting work.
 .TP
 \fB\-f\fR \fIfiles\fR
 Only write this number of 1 GiB sized files.
+.TP
+\fB\-n\fR
+Skip verification of files, e.g. for wiping a disk.
 .TP
 \fB\-r\fR
 Only verify existing data files with given random seed.

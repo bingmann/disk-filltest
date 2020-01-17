@@ -35,10 +35,16 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/statvfs.h>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
+
+#if defined(_MSC_VER) || defined(__MINGW32__)
+  /* no <sys/statvfs.h> */
+#else
+  #include <sys/statvfs.h>
+  #define HAVE_STATVFS 1
+#endif
 
 /* random seed used */
 unsigned int g_seed;
@@ -241,8 +247,8 @@ void write_randfiles(void)
     int done = 0;
     unsigned int expected_file_limit = UINT_MAX;
 
-    if (gopt_file_limit == UINT_MAX)
-    {
+    if (gopt_file_limit == UINT_MAX) {
+#if HAVE_STATVFS
         struct statvfs buf;
 
         if (statvfs(".", &buf) == 0) {
@@ -252,6 +258,7 @@ void write_randfiles(void)
             expected_file_limit = (free_size + gopt_file_size - 1)
                 / (1024 * 1024) / gopt_file_size;
         }
+#endif /* HAVE_STATVFS */
     }
     else {
         expected_file_limit = gopt_file_limit;

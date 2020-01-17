@@ -7,7 +7,7 @@
  * Each file is up to 1 GiB in size and contains randomly generated integers.
  * When the disk is full, writing is finished and all files are read from disk.
  * During reading the file contents is checked against the pseudo-random
- * sequence to detect changed data blocks. Any unexpected integer will output
+ * sequence to detect changed data blocks. Any unexpected value will output
  * an error. Reading and writing speed are shown during operation.
  *
  ******************************************************************************
@@ -35,6 +35,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/statvfs.h>
 #include <sys/time.h>
 #include <time.h>
 #include <unistd.h>
@@ -58,7 +59,7 @@ int gopt_skip_verify = 0;
 unsigned int gopt_file_size = 0;
 
 /* file number limit */
-unsigned int gopt_file_limit = 0;
+unsigned int gopt_file_limit = UINT_MAX;
 
 /* number of repetitions */
 int gopt_repeat = 1;
@@ -99,6 +100,36 @@ void filehandle_append(int fd)
     }
 
     g_filehandle[ g_filehandle_size++ ] = fd;
+}
+
+/* produce nicely formatted time in seconds */
+void format_time(unsigned int sec, char output[64])
+{
+    /* maximum digits of 32-bit unsigned int are 9. */
+    if (sec >= 24 * 3600) {
+        unsigned int days = sec / (24 * 3600);
+        sec -= days * (24 * 3600);
+        unsigned int hours = sec / 3600;
+        sec -= hours * 3600;
+        unsigned int minutes = sec / 60;
+        sec -= minutes * 60;
+        sprintf(output, "%ud%uh%um%us", days, hours, minutes, sec);
+    }
+    else if (sec >= 3600) {
+        unsigned int hours = sec / 3600;
+        sec -= hours * 3600;
+        unsigned int minutes = sec / 60;
+        sec -= minutes * 60;
+        sprintf(output, "%uh%um%us", hours, minutes, sec);
+    }
+    else if (sec >= 60) {
+        unsigned int minutes = sec / 60;
+        sec -= minutes * 60;
+        sprintf(output, "%um%us", minutes, sec);
+    }
+    else {
+        sprintf(output, "%us", sec);
+    }
 }
 
 /* for compatiblity with windows, use O_BINARY if available */
@@ -203,22 +234,37 @@ void unlink_randfiles(void)
 }
 
 /* fill disk */
-void fill_randfiles(void)
+void write_randfiles(void)
 {
     unsigned int filenum = 0;
     int done = 0;
+    unsigned int expected_file_limit = UINT_MAX;
 
-    if (gopt_file_limit == 0) gopt_file_limit = UINT_MAX;
+    if (gopt_file_limit == UINT_MAX)
+    {
+        struct statvfs buf;
+
+        if (statvfs(".", &buf) == 0) {
+            uint64_t free_size =
+                (uint64_t)(buf.f_blocks) * (uint64_t)(buf.f_bsize);
+
+            expected_file_limit = (free_size + gopt_file_size - 1)
+                / (1024 * 1024) / gopt_file_size;
+        }
+    }
+    else {
+        expected_file_limit = gopt_file_limit;
+    }
 
     printf("Writing files random-######## with seed %u\n", g_seed);
 
     while (!done && filenum < gopt_file_limit)
     {
-        char filename[32];
+        char filename[32], eta[64];
         int fd;
         ssize_t wtotal, wb, wp;
         unsigned int i, blocknum;
-        double ts1, ts2;
+        double ts1, ts2, speed;
         uint64_t rnd;
 
         item_type block[(1024 * 1024) / sizeof(item_type)];
@@ -279,10 +325,19 @@ void fill_randfiles(void)
 
         ts2 = timestamp();
 
-        printf("Wrote %.0f MiB random data to %s with %f MiB/s\n",
-               (wtotal / 1024.0 / 1024.0),
-               filename,
-               (wtotal / 1024.0 / 1024.0 / (ts2-ts1)));
+        speed = wtotal / 1024.0 / 1024.0 / (ts2 - ts1);
+
+        if (expected_file_limit != UINT_MAX && filenum <= expected_file_limit) {
+            format_time(
+                (expected_file_limit - filenum) * gopt_file_size / speed, eta);
+
+            printf("Wrote %.0f MiB random data to %s with %f MiB/s, eta %s.\n",
+                   (wtotal / 1024.0 / 1024.0), filename, speed, eta);
+        }
+        else {
+            printf("Wrote %.0f MiB random data to %s with %f MiB/s.\n",
+                   (wtotal / 1024.0 / 1024.0), filename, speed);
+        }
         fflush(stdout);
     }
 
@@ -294,16 +349,35 @@ void read_randfiles(void)
 {
     unsigned int filenum = 0;
     int done = 0;
+    unsigned int expected_file_limit = UINT_MAX;
 
-    printf("Verifying files random-######## with seed %u\n", g_seed);
+    if (gopt_unlink_immediate) {
+        expected_file_limit = g_filehandle_size;
+    }
+    else {
+        char filename[32];
+        int fd;
+
+        for (expected_file_limit = 0; ; ++expected_file_limit) {
+            /* attempt to open file */
+            sprintf(filename, "random-%08u", expected_file_limit);
+            fd = open(filename, O_RDONLY | O_BINARY);
+            if (fd < 0)
+                break;
+            close(fd);
+        }
+    }
+
+    printf("Verifying %u files random-######## with seed %u\n",
+           expected_file_limit, g_seed);
 
     while (!done)
     {
-        char filename[32];
+        char filename[32], eta[64];
         int fd;
         ssize_t rtotal, rb;
         unsigned int i, blocknum;
-        double ts1, ts2;
+        double ts1, ts2, speed;
         uint64_t rnd;
 
         item_type block[(1024 * 1024) / sizeof(item_type)];
@@ -372,10 +446,12 @@ void read_randfiles(void)
 
         ts2 = timestamp();
 
-        printf("Read %.0f MiB random data from %s with %f MiB/s\n",
-               (rtotal / 1024.0 / 1024.0),
-               filename,
-               (rtotal / 1024.0 / 1024.0 / (ts2-ts1)));
+        speed = rtotal / 1024.0 / 1024.0 / (ts2 - ts1);
+        format_time(
+            (expected_file_limit - filenum) * gopt_file_size / speed, eta);
+
+        printf("Read %.0f MiB random data from %s with %f MiB/s, eta %s.\n",
+               (rtotal / 1024.0 / 1024.0), filename, speed, eta);
         fflush(stdout);
     }
 }
@@ -399,7 +475,7 @@ int main(int argc, char* argv[])
         else
         {
             unlink_randfiles();
-            fill_randfiles();
+            write_randfiles();
             if (!gopt_skip_verify)
                 read_randfiles();
             if (gopt_unlink_after)

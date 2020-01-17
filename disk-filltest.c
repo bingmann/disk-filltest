@@ -58,7 +58,7 @@ unsigned int gopt_file_size = 0;
 unsigned int gopt_file_limit = 0;
 
 /* return the current timestamp */
-static inline double timestamp(void)
+double timestamp(void)
 {
     struct timeval tv;
     gettimeofday(&tv, 0);
@@ -67,7 +67,7 @@ static inline double timestamp(void)
 
 /* simple linear congruential random generator, faster than rand() and totally
  * sufficient for this cause. */
-static inline uint64_t lcg_random(uint64_t *xn)
+uint64_t lcg_random(uint64_t *xn)
 {
     *xn = 0x27BB2EE687B0B0FDLLU * *xn + 0xB504F32DLU;
     return *xn;
@@ -82,7 +82,7 @@ unsigned int g_filehandle_size = 0;
 unsigned int g_filehandle_limit = 0;
 
 /* append to the list of open file handles */
-static inline void filehandle_append(int fd)
+void filehandle_append(int fd)
 {
     if (g_filehandle_size >= g_filehandle_limit)
     {
@@ -171,7 +171,7 @@ void unlink_randfiles(void)
     while (filenum < UINT_MAX)
     {
         char filename[32];
-        snprintf(filename, sizeof(filename), "random-%08u", filenum);
+        sprintf(filename, "random-%08u", filenum);
 
         if (unlink(filename) != 0)
             break;
@@ -210,7 +210,7 @@ void fill_randfiles(void)
 
         item_type block[1024*1024 / sizeof(item_type)];
 
-        snprintf(filename, sizeof(filename), "random-%08u", filenum);
+        sprintf(filename, "random-%08u", filenum);
 
         fd = open(filename, O_RDWR | O_CREAT | O_TRUNC | O_BINARY, 0600);
         if (fd < 0) {
@@ -295,7 +295,7 @@ void read_randfiles(void)
 
         item_type block[1024*1024 / sizeof(item_type)];
 
-        snprintf(filename, sizeof(filename), "random-%08u", filenum);
+        sprintf(filename, "random-%08u", filenum);
 
         if (gopt_unlink_immediate)
         {
@@ -386,3 +386,5 @@ int main(int argc, char* argv[])
 
     return 0;
 }
+
+/******************************************************************************/

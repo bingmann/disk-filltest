@@ -1,6 +1,6 @@
 # Very Simple Makefile
 
-CFLAGS = -W -Wall -O3
+CFLAGS = -W -Wall -O3 -ansi
 
 # Directories for executables and manuals
 prefix = $(DESTDIR)/usr/local
@@ -10,6 +10,7 @@ man1dir = $(prefix)/man1
 
 GZIP = gzip
 INSTALL = install
+RM = rm
 
 all: disk-filltest
 
@@ -26,3 +27,6 @@ install-bin: disk-filltest
 
 install-man: disk-filltest.1.gz
 	$(INSTALL) -m 0644 -t  $(man1dir) -D disk-filltest.1.gz
+
+clean:
+	$(RM) -f disk-filltest

@@ -99,10 +99,19 @@ void filehandle_append(int fd)
 {
     if (g_filehandle_size >= g_filehandle_limit)
     {
+        int* new_filehandle;
+
         g_filehandle_limit *= 2;
         if (g_filehandle_limit < 128) g_filehandle_limit = 128;
 
-        g_filehandle = realloc(g_filehandle, sizeof(int) * g_filehandle_limit);
+        new_filehandle = realloc(
+            g_filehandle, sizeof(int) * g_filehandle_limit);
+        if (!new_filehandle) {
+            fprintf(stderr,
+                    "Out of memory when allocating new file handle buffer.\n");
+            exit(EXIT_FAILURE);
+        }
+        g_filehandle = new_filehandle;
     }
 
     g_filehandle[ g_filehandle_size++ ] = fd;
@@ -138,7 +147,7 @@ void format_time(unsigned int sec, char output[64])
     }
 }
 
-/* for compatiblity with windows, use O_BINARY if available */
+/* for compatibility with windows, use O_BINARY if available */
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif

@@ -27,6 +27,8 @@
  * this program.  If not, see <http://www.gnu.org/licenses/>.
  *****************************************************************************/
 
+#define VERSION "0.8.1"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <getopt.h>
@@ -158,6 +160,10 @@ void print_usage(char* argv[])
     fprintf(stderr,
             "Usage: %s [-s seed] [-f files] [-S size] [-r] [-u] [-U] [-C dir]\n"
             "\n"
+            "disk-filltest " VERSION " is a simple program which fills a path with random\n"
+            "data and then rereads the files to check that the random sequence was\n"
+            "correctly stored.\n"
+            "\n"
             "Options: \n"
             "  -C <dir>          Change into given directory before starting work.\n"
             "  -f <file number>  Only write this number of 1 GiB sized files.\n"
@@ -168,6 +174,7 @@ void print_usage(char* argv[])
             "  -S <size>         Size of each random file in MiB (default: 1024).\n"
             "  -u                Remove files after successful test.\n"
             "  -U                Immediately remove files, write and verify via file handles.\n"
+            "  -V                Print version and exit.\n"
             "\n",
             argv[0]);
     exit(EXIT_FAILURE);
@@ -178,7 +185,7 @@ void parse_commandline(int argc, char* argv[])
 {
     int opt;
 
-    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:NR:")) != -1) {
+    while ((opt = getopt(argc, argv, "hs:S:f:ruUC:NR:V")) != -1) {
         switch (opt) {
         case 's':
             g_seed = atoi(optarg);
@@ -210,6 +217,9 @@ void parse_commandline(int argc, char* argv[])
         case 'R':
             gopt_repeat = atoi(optarg);
             break;
+	case 'V':
+	    printf("disk-filltest " VERSION "\n");
+            exit(EXIT_SUCCESS);
         case 'h':
         default:
             print_usage(argv);

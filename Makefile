@@ -26,10 +26,10 @@ disk-filltest.1.gz: disk-filltest.1
 install: install-bin install-man
 
 install-bin: disk-filltest
-	$(INSTALL) -m 0755 -t $(DESTDIR)$(bindir) -D disk-filltest
+	$(INSTALL) -m 0755 -t "$(DESTDIR)/$(bindir)" -D disk-filltest
 
 install-man: disk-filltest.1.gz
-	$(INSTALL) -m 0644 -t  $(DESTDIR)$(man1dir) -D disk-filltest.1.gz
+	$(INSTALL) -m 0644 -t  "$(DESTDIR)/$(man1dir)" -D disk-filltest.1.gz
 
 clean:
 	$(RM) -f disk-filltest

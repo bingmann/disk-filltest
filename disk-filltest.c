@@ -72,6 +72,9 @@ unsigned int gopt_file_limit = UINT_MAX;
 /* number of repetitions */
 int gopt_repeat = 1;
 
+/* size of last file written */
+unsigned int g_last_filesize = UINT_MAX;
+
 /* return the current timestamp */
 double timestamp(void)
 {
@@ -353,6 +356,7 @@ void write_randfiles(void)
         ts2 = timestamp();
 
         speed = wtotal / 1024.0 / 1024.0 / (ts2 - ts1);
+        g_last_filesize = wtotal;
 
         if (expected_file_limit != UINT_MAX && filenum <= expected_file_limit) {
             format_time(
@@ -444,9 +448,29 @@ void read_randfiles(void)
 
         for (blocknum = 0; blocknum < gopt_file_size; ++blocknum)
         {
-            rb = read(fd, block, sizeof(block));
+            unsigned int read_size = sizeof(block);
+            if (filenum == expected_file_limit && g_last_filesize != UINT_MAX &&
+                blocknum * sizeof(block) > g_last_filesize) {
+                read_size = g_last_filesize - (blocknum - 1) * sizeof(block);
+            }
+            rb = read(fd, block, read_size);
 
-            if (rb <= 0) {
+            if (rb == 0) {
+                /* got EOF on file */
+                if (filenum != expected_file_limit ||
+                    (g_last_filesize != UINT_MAX && rtotal != g_last_filesize))
+                {
+                    printf("Unexpectedly short file %s: "
+                           "read %u of expected %ld bytes\n",
+                           filename, g_last_filesize, rtotal);
+                    done = 1;
+                    exit(EXIT_FAILURE);
+                }
+
+                done = 1;
+                break;
+            }
+            else if (rb < 0) {
                 printf("Error reading file %s: %s\n",
                        filename, strerror(errno));
                 done = 1;
@@ -481,6 +505,9 @@ void read_randfiles(void)
                (rtotal / 1024.0 / 1024.0), filename, speed, eta);
         fflush(stdout);
     }
+
+    printf("Successfully verified %u files random-######## with seed %u\n",
+           expected_file_limit, g_seed);
 }
 
 int main(int argc, char* argv[])

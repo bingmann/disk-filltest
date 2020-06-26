@@ -292,8 +292,9 @@ void write_randfiles(void)
     {
         char filename[32], eta[64];
         int fd;
-        ssize_t wtotal, wb, wp;
-        unsigned int i, blocknum;
+        ssize_t wb;
+        unsigned int i, blocknum, wp;
+        uint64_t wtotal;
         double ts1, ts2, speed;
         uint64_t rnd;
 
@@ -328,7 +329,7 @@ void write_randfiles(void)
 
             wp = 0;
 
-            while ( wp != (ssize_t)sizeof(block) && !done )
+            while ( wp != sizeof(block) && !done )
             {
                 wb = write(fd, (char*)block + wp, sizeof(block) - wp);
 
@@ -406,8 +407,9 @@ void read_randfiles(void)
     {
         char filename[32], eta[64];
         int fd;
-        ssize_t rtotal, rb;
+        ssize_t rb;
         unsigned int i, blocknum;
+        uint64_t rtotal;
         double ts1, ts2, speed;
         uint64_t rnd;
 
@@ -461,7 +463,7 @@ void read_randfiles(void)
                     (g_last_filesize != UINT_MAX && rtotal != g_last_filesize))
                 {
                     printf("Unexpectedly short file %s: "
-                           "read %u of expected %ld bytes\n",
+                           "read %u of expected %"PRIu64" bytes\n",
                            filename, g_last_filesize, rtotal);
                     done = 1;
                     exit(EXIT_FAILURE);

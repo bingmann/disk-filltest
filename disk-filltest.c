@@ -42,7 +42,8 @@
 #include <unistd.h>
 
 #if defined(_MSC_VER) || defined(__MINGW32__)
-  /* no <sys/statvfs.h> */
+  #include <fileapi.h>
+  #define HAVE_FILEAPI 1
 #else
   #include <sys/statvfs.h>
   #define HAVE_STATVFS 1
@@ -270,7 +271,14 @@ void write_randfiles(void)
     unsigned int expected_file_limit = UINT_MAX;
 
     if (gopt_file_limit == UINT_MAX) {
-#if HAVE_STATVFS
+#if HAVE_FILEAPI
+        ULARGE_INTEGER free_size;
+
+        if (GetDiskFreeSpaceEx(NULL, &free_size, NULL, NULL)) {
+            expected_file_limit = (free_size.QuadPart + gopt_file_size - 1)
+                / (1024 * 1024) / gopt_file_size;
+        }
+#elif HAVE_STATVFS
         struct statvfs buf;
 
         if (statvfs(".", &buf) == 0) {
@@ -280,7 +288,7 @@ void write_randfiles(void)
             expected_file_limit = (free_size + gopt_file_size - 1)
                 / (1024 * 1024) / gopt_file_size;
         }
-#endif /* HAVE_STATVFS */
+#endif
     }
     else {
         expected_file_limit = gopt_file_limit;

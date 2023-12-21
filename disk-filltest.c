@@ -282,8 +282,13 @@ void write_randfiles(void)
         struct statvfs buf;
 
         if (statvfs(".", &buf) == 0) {
-            uint64_t free_size =
-                (uint64_t)(buf.f_blocks) * (uint64_t)(buf.f_frsize);
+            uint64_t free_blocks;
+            if (geteuid() == 0)
+                free_blocks = (uint64_t)(buf.f_bfree);
+            else
+                free_blocks = (uint64_t)(buf.f_bavail);
+
+            uint64_t free_size = free_blocks * (uint64_t)(buf.f_frsize);
 
             expected_file_limit = (free_size + gopt_file_size - 1)
                 / (1024 * 1024) / gopt_file_size;

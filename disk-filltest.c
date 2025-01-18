@@ -260,6 +260,8 @@ void unlink_randfiles(void)
 
     if (filenum > 0)
         printf(" total: %u.\n", filenum);
+
+    unlink("random-seed");
 }
 
 /* fill disk */
@@ -287,6 +289,14 @@ void write_randfiles(void)
     }
 
     printf("Writing files random-######## with seed %u\n", g_seed);
+
+    if (!gopt_unlink_immediate) {
+        FILE *fp = fopen("random-seed", "w");
+        if (fp != NULL) {
+            fprintf(fp, "%u", g_seed);
+            fclose(fp);
+        }
+    }
 
     while (!done && filenum < gopt_file_limit)
     {

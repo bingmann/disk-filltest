@@ -49,7 +49,7 @@
 #endif
 
 /* random seed used */
-unsigned int g_seed;
+unsigned int g_seed = 0;
 
 /* only perform read operation */
 int gopt_readonly = 0;
@@ -526,9 +526,19 @@ int main(int argc, char* argv[])
 {
     int r;
 
-    g_seed = time(NULL);
-
     parse_commandline(argc, argv);
+
+    if (gopt_readonly && !g_seed) {
+        FILE *fp = fopen("random-seed", "r");
+        if (fp != NULL) {
+            fscanf(fp, "%u", &g_seed);
+            fclose(fp);
+        }
+    }
+
+    if (!g_seed) {
+        g_seed = time(NULL);
+    }
 
     for (r = 0; r < gopt_repeat; ++r)
     {

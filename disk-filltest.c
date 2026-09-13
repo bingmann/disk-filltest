@@ -122,6 +122,15 @@ void filehandle_append(int fd)
     g_filehandle[ g_filehandle_size++ ] = fd;
 }
 
+void filehandle_cleanup()
+{
+    unsigned int i;
+    for (i = 0; i < g_filehandle_size; i++) {
+        close(g_filehandle[i]);
+    }
+    g_filehandle_size = 0;
+}
+
 /* produce nicely formatted time in seconds */
 void format_time(unsigned int sec, char output[64])
 {
@@ -536,6 +545,8 @@ int main(int argc, char* argv[])
                 read_randfiles();
             if (gopt_unlink_after)
                 unlink_randfiles();
+			if (gopt_unlink_immediate)
+                filehandle_cleanup();
         }
     }
 

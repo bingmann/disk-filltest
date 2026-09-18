@@ -49,7 +49,7 @@
 #endif
 
 /* random seed used */
-unsigned int g_seed;
+unsigned int g_seed = 0;
 
 /* only perform read operation */
 int gopt_readonly = 0;
@@ -269,6 +269,8 @@ void unlink_randfiles(void)
 
     if (filenum > 0)
         printf(" total: %u.\n", filenum);
+
+    unlink("random-seed");
 }
 
 /* fill disk */
@@ -296,6 +298,14 @@ void write_randfiles(void)
     }
 
     printf("Writing files random-######## with seed %u\n", g_seed);
+
+    if (!gopt_unlink_immediate) {
+        FILE *fp = fopen("random-seed", "w");
+        if (fp != NULL) {
+            fprintf(fp, "%u", g_seed);
+            fclose(fp);
+        }
+    }
 
     while (!done && filenum < gopt_file_limit)
     {
@@ -525,9 +535,19 @@ int main(int argc, char* argv[])
 {
     int r;
 
-    g_seed = time(NULL);
-
     parse_commandline(argc, argv);
+
+    if (gopt_readonly && !g_seed) {
+        FILE *fp = fopen("random-seed", "r");
+        if (fp != NULL) {
+            fscanf(fp, "%u", &g_seed);
+            fclose(fp);
+        }
+    }
+
+    if (!g_seed) {
+        g_seed = time(NULL);
+    }
 
     for (r = 0; r < gopt_repeat; ++r)
     {

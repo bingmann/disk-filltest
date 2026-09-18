@@ -32,4 +32,4 @@ install-man: disk-filltest.1.gz
 	$(INSTALL) -m 0644 -t  "$(DESTDIR)/$(man1dir)" -D disk-filltest.1.gz
 
 clean:
-	$(RM) -f disk-filltest
+	$(RM) -f disk-filltest disk-filltest.1.gz
